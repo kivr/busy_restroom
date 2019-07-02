@@ -5,9 +5,9 @@
 
 #define DOOR_PIN 2
 #define ULTRA_POWER_PIN 5
+#define ULTRA_TRIGGER_PIN 4
+#define ULTRA_ECHO_PIN 3
 #define PAYLOAD_SIZE 8
-
-UltraSonicDistanceSensor distanceSensor(4, 3);
 
 /*************  USER Configuration *****************************/
                                            // Hardware configuration
@@ -41,12 +41,44 @@ void sleep() {
   sleep_cpu();
 }
 
+double readDistance() {
+  double cm;
+  int retries = 0;
+  long duration;
+  
+  // Reset the trigger pin and get ready for a clean trigger pulse
+  digitalWrite(ULTRA_TRIGGER_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(ULTRA_TRIGGER_PIN, HIGH); // You need to keep it high for 10 micro seconds length
+  delayMicroseconds(10); // This is the 10 microseconds we mentioned above :)
+  digitalWrite(ULTRA_TRIGGER_PIN, LOW); // Stop the trigger pulse after the 10 microseconds
+
+  duration = pulseIn(ULTRA_ECHO_PIN, HIGH, 20000);
+  
+  while (duration == 0 && retries < 5) {
+    Serial.print("Unstucking ultrasonic sensor...\n");
+    pinMode(ULTRA_ECHO_PIN, OUTPUT);
+    digitalWrite(ULTRA_ECHO_PIN, LOW);
+    delayMicroseconds(10);
+    pinMode(ULTRA_ECHO_PIN, INPUT_PULLUP);
+    
+    retries++;
+    duration = pulseIn(ULTRA_ECHO_PIN, HIGH, 20000);
+  }
+  
+  cm = (duration/2.0) / 29.1;
+
+  return cm;
+}
+
 void setup(void) {
 
   Serial.begin(115200);
 
   pinMode(DOOR_PIN, INPUT_PULLUP);
   pinMode(ULTRA_POWER_PIN, OUTPUT);
+  pinMode(ULTRA_TRIGGER_PIN, OUTPUT);
+  pinMode(ULTRA_ECHO_PIN, INPUT_PULLUP);
   digitalWrite(ULTRA_POWER_PIN, LOW);
 
   radio.begin();                           // Setup and configure rf radio
@@ -84,7 +116,7 @@ void loop(void){
     
     for (i = 1; i < PAYLOAD_SIZE; i++) {
       delay(60);
-      data[i] = (unsigned byte)distanceSensor.measureDistanceCm();
+      data[i] = (unsigned byte)readDistance();
       Serial.print(data[i]);
       Serial.println();
     }
