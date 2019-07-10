@@ -41,6 +41,21 @@ void sleep() {
   sleep_cpu();
 }
 
+void initRadio {
+    radio.begin();                           // Setup and configure rf radio
+    radio.setChannel(1);
+    radio.setPALevel(RF24_PA_MAX);           // If you want to save power use "RF24_PA_MIN" but keep in mind that reduces the module's range
+    radio.setDataRate(RF24_250KBPS);
+    radio.setAutoAck(1);                     // Ensure autoACK is enabled
+    radio.setRetries(15,15);                  // Optionally, increase the delay between retries & # of retries
+    radio.setPayloadSize(PAYLOAD_SIZE);
+    radio.setCRCLength(RF24_CRC_8);          // Use 8-bit CRC for performance
+    radio.openWritingPipe(pipe);
+
+    radio.stopListening();                  // Start listening
+    radio.printDetails();                    // Dump the configuration of the rf unit for debugging
+}
+
 void setup(void) {
 
   Serial.begin(115200);
@@ -48,25 +63,6 @@ void setup(void) {
   pinMode(DOOR_PIN, INPUT_PULLUP);
   pinMode(ULTRA_POWER_PIN, OUTPUT);
   digitalWrite(ULTRA_POWER_PIN, LOW);
-
-  radio.begin();                           // Setup and configure rf radio
-  radio.setChannel(1);
-  radio.setPALevel(RF24_PA_MAX);           // If you want to save power use "RF24_PA_MIN" but keep in mind that reduces the module's range
-  radio.setDataRate(RF24_250KBPS);
-  radio.setAutoAck(1);                     // Ensure autoACK is enabled
-  radio.setRetries(15,15);                  // Optionally, increase the delay between retries & # of retries
-  radio.setPayloadSize(PAYLOAD_SIZE);
-  radio.setCRCLength(RF24_CRC_8);          // Use 8-bit CRC for performance
-  radio.openWritingPipe(pipe);
-  
-  radio.stopListening();                  // Start listening
-  radio.printDetails();                    // Dump the configuration of the rf unit for debugging
-  
-  Serial.println(F("\n\rRF24/examples/Transfer/"));
-  
-  for(int i = 0; i < PAYLOAD_SIZE; i++){
-     data[i] = 'K';
-  }
 }
 
 void loop(void){
@@ -77,23 +73,22 @@ void loop(void){
 
   data[0] = value == HIGH ? 'O' : 'C';
 
+  digitalWrite(ULTRA_POWER_PIN, HIGH);
+
   if (value == LOW) {
     int i;
 
-    digitalWrite(ULTRA_POWER_PIN, HIGH);
-    
     for (i = 1; i < PAYLOAD_SIZE; i++) {
       delay(60);
       data[i] = (unsigned byte)distanceSensor.measureDistanceCm();
       Serial.print(data[i]);
       Serial.println();
     }
-
-    digitalWrite(ULTRA_POWER_PIN, LOW);
   }
   
   Serial.println(F("Initiating Basic Data Transfer"));
 
+  initRadio();
   radio.powerUp();
           
   if(!radio.writeFast(&data,32)){   //Write to the FIFO buffers        
@@ -107,6 +102,8 @@ void loop(void){
   Serial.println();
 
   radio.powerDown();
+
+  digitalWrite(ULTRA_POWER_PIN, LOW);
 
   sleep();
 }
