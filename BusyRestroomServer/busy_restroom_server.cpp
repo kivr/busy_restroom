@@ -4,7 +4,12 @@
 #include <string>
 #include <RF24/RF24.h>
 #include <unistd.h>
-#include <time.h>
+#include <pthread.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+
+#define MAX_CLIENT_COUNT 10
+#define SOCK_PATH "/var/run/busy_restroom"
 
 using namespace std;
 //
@@ -58,6 +63,8 @@ const uint64_t address = 0xABCDABCD71LL;
 
 uint8_t data[8];
 unsigned long startTime, stopTime, counter, rxTimer=0;
+int clients[MAX_CLIENT_COUNT];
+int client_count = 0;
 
 double mean(uint8_t *data, int length) {
     double sum = 0;
@@ -91,66 +98,86 @@ double variance(uint8_t *data, int length) {
     return ssum / count;
 }
 
+void *startServerThread(void *ptr) {
+    int server_socket, client_socket;
+    sockaddr_un addr;
+
+    server_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+
+    unlink(SOCK_PATH);
+
+    addr.sun_family = AF_UNIX;
+    strcpy(addr.sun_path, SOCK_PATH);
+    bind(server_socket, (sockaddr*)&addr, sizeof(addr));
+    listen(server_socket, 10);
+   
+    while (client_count < MAX_CLIENT_COUNT) {
+        clients[client_count] = accept(server_socket, NULL, 0);
+        if (clients[client_count] != -1) {
+            printf("Client %d\n", clients[client_count]);
+            client_count++;
+        }
+    }
+}
+
 int main(int argc, char** argv){
+    pthread_t serverThread;
 
-  // Print preamble:
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
 
-  cout << "RF24/examples/Transfer/\n";
+    pthread_create(&serverThread, NULL, startServerThread, NULL);
 
-  radio.begin();                           // Setup and configure rf radio
-  radio.setChannel(1);
-  radio.setPALevel(RF24_PA_MAX);
-  radio.setDataRate(RF24_250KBPS);
-  radio.setAutoAck(1);                     // Ensure autoACK is enabled
-  radio.setRetries(2,15);                  // Optionally, increase the delay between retries & # of retries
-  radio.setPayloadSize(8);
-  radio.setCRCLength(RF24_CRC_8);          // Use 8-bit CRC for performance
-  radio.printDetails();
-/********* Role chooser ***********/
+    // Print preamble:
 
-  printf("\n ************ Role Setup ***********\n");
-  string input = "";
+    radio.begin();                           // Setup and configure rf radio
+    radio.setChannel(1);
+    radio.setPALevel(RF24_PA_MAX);
+    radio.setDataRate(RF24_250KBPS);
+    radio.setAutoAck(1);                     // Ensure autoACK is enabled
+    radio.setRetries(2,15);                  // Optionally, increase the delay between retries & # of retries
+    radio.setPayloadSize(8);
+    radio.setCRCLength(RF24_CRC_8);          // Use 8-bit CRC for performance
+    radio.printDetails();
+    /********* Role chooser ***********/
 
-  radio.openReadingPipe(1,address);
-  radio.startListening();
+    radio.openReadingPipe(1,address);
+    radio.startListening();
 
     // forever loop
     while (1){
 
-     while(radio.available()){
-      radio.read(&data,8);
-      counter++;
-     }
+        while(radio.available()){
+            radio.read(&data,8);
+            counter++;
+        }
 
-   if(counter > 0){
-     time_t currentTime = time(NULL);
-     char *currentTimeText = asctime(localtime(&currentTime));
-     currentTimeText[strlen(currentTimeText) - 1] = '\0';
+        if(counter > 0){
+            int i;
 
-     rxTimer = millis();
-     float numBytes = counter*32;
-     printf("%s %s", currentTimeText, data[0] == 'C' ? " Closed " : " Opened ");
+            rxTimer = millis();
+            float numBytes = counter*32;
+            printf("%s", data[0] == 'C' ? " Closed " : " Opened ");
 
-//     if (data[0] == 'C') {
-//        int i = 0;
-//        double m = mean(data + 1, 7);
-//        double v = variance(data + 1, 7);
-//        printf("m:%.2f v:%.2f r:%c\n", m, v,
-//                m > 190.0 && v < 1000 ? 'E' : 'F');
-//        for (i = 1; i < 8; i++) {
-//            printf("%d ", data[i]);
-//        }
-//     }
-     printf("\n\r");
+            if (data[0] == 'C') {
+                int i = 0;
+                double m = mean(data + 1, 7);
+                double v = variance(data + 1, 7);
+                printf("m:%.2f v:%.2f r:%c\n", m, v,
+                        m > 190.0 && v < 1000 ? 'E' : 'F');
+                for (i = 1; i < 8; i++) {
+                    printf("%d ", data[i]);
+                }
+            }
+            printf("\n");
 
-     counter = 0;
-   }
-  }
+            // Notify clients
+            for (i = 0; i < client_count; i++) {
+                write(clients[i], &data, 1);
+            }
+
+            counter = 0;
+        }
+    }
 
 } // main
-
-
-
-
-
-
