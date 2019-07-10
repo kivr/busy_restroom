@@ -100,7 +100,7 @@ void loop(void){
     counter++;                      //Keep count of failed payloads
   }
                                        //This should be called to wait for completion and put the radio in standby mode after transmission, returns 0 if data still in FIFO (timed out), 1 if success
-  bool txOK = radio.txStandBy(10000);
+  bool txOK = radio.txStandBy(3000);
   
   Serial.print("Transfer complete ");
   Serial.print(txOK ? "OK" : "ERROR");
