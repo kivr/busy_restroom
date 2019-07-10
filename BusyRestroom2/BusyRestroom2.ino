@@ -41,7 +41,7 @@ void sleep() {
   sleep_cpu();
 }
 
-void initRadio {
+void initRadio() {
     radio.begin();                           // Setup and configure rf radio
     radio.setChannel(1);
     radio.setPALevel(RF24_PA_MAX);           // If you want to save power use "RF24_PA_MIN" but keep in mind that reduces the module's range
