@@ -63,6 +63,8 @@ void setup(void) {
   pinMode(DOOR_PIN, INPUT_PULLUP);
   pinMode(ULTRA_POWER_PIN, OUTPUT);
   digitalWrite(ULTRA_POWER_PIN, LOW);
+
+  initRadio();
 }
 
 void loop(void){
@@ -88,7 +90,6 @@ void loop(void){
   
   Serial.println(F("Initiating Basic Data Transfer"));
 
-  initRadio();
   radio.powerUp();
           
   if(!radio.writeFast(&data,32)){   //Write to the FIFO buffers        
