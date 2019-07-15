@@ -1,13 +1,12 @@
 #include <SPI.h>
 #include "RF24.h"
 #include <avr/sleep.h>
-#include <HCSR04.h>
 
 #define DOOR_PIN 2
 #define ULTRA_POWER_PIN 5
-#define PAYLOAD_SIZE 8
+#define PAYLOAD_SIZE 1
 
-UltraSonicDistanceSensor distanceSensor(4, 3);
+static volatile bool personDetected = false;
 
 /*************  USER Configuration *****************************/
                                            // Hardware configuration
@@ -25,6 +24,11 @@ unsigned long startTime, stopTime;
 void wakeUp() {
   sleep_disable();
   detachInterrupt(0);
+}
+
+void setPersonDetected() {
+  personDetected = true;
+  detachInterrupt(1);
 }
 
 void sleep() {
@@ -69,22 +73,21 @@ void setup(void) {
 
 void loop(void){
   counter = 0;
+
+  if (personDetected) {
+    data[0] = 'P';
+    personDetected = false;
+  } else {
+    detachInterrupt(1);
+    delay(20);
+    byte value = digitalRead(DOOR_PIN);
   
-  delay(20);
-  byte value = digitalRead(DOOR_PIN);
-
-  data[0] = value == HIGH ? 'O' : 'C';
-
-  digitalWrite(ULTRA_POWER_PIN, HIGH);
-
-  if (value == LOW) {
-    int i;
-
-    for (i = 1; i < PAYLOAD_SIZE; i++) {
-      delay(60);
-      data[i] = (unsigned byte)distanceSensor.measureDistanceCm();
-      Serial.print(data[i]);
-      Serial.println();
+    data[0] = value == HIGH ? 'O' : 'C';
+  
+    digitalWrite(ULTRA_POWER_PIN, HIGH);
+  
+    if (value == LOW) {
+      attachInterrupt(1, setPersonDetected, HIGH);
     }
   }
   
@@ -92,7 +95,7 @@ void loop(void){
 
   radio.powerUp();
           
-  if(!radio.writeFast(&data,32)){   //Write to the FIFO buffers        
+  if(!radio.writeFast(&data, PAYLOAD_SIZE)){   //Write to the FIFO buffers        
     counter++;                      //Keep count of failed payloads
   }
                                        //This should be called to wait for completion and put the radio in standby mode after transmission, returns 0 if data still in FIFO (timed out), 1 if success
@@ -106,5 +109,7 @@ void loop(void){
 
   digitalWrite(ULTRA_POWER_PIN, LOW);
 
-  sleep();
+  if (!personDetected) {
+    sleep();
+  }
 }
