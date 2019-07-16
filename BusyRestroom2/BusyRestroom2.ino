@@ -6,7 +6,7 @@
 #define ULTRA_POWER_PIN 5
 #define PAYLOAD_SIZE 1
 
-static volatile bool personDetected = false;
+volatile byte personDetected = 0;
 
 /*************  USER Configuration *****************************/
                                            // Hardware configuration
@@ -27,7 +27,7 @@ void wakeUp() {
 }
 
 void setPersonDetected() {
-  personDetected = true;
+  personDetected = 1;
   detachInterrupt(1);
 }
 
@@ -76,7 +76,7 @@ void loop(void){
 
   if (personDetected) {
     data[0] = 'P';
-    personDetected = false;
+    personDetected = 0;
   } else {
     detachInterrupt(1);
     delay(20);
@@ -87,7 +87,7 @@ void loop(void){
     digitalWrite(ULTRA_POWER_PIN, HIGH);
   
     if (value == LOW) {
-      attachInterrupt(1, setPersonDetected, HIGH);
+      attachInterrupt(1, setPersonDetected, RISING);
     }
   }
   
