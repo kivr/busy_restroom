@@ -3,10 +3,12 @@
 #include <avr/sleep.h>
 
 #define DOOR_PIN 2
+#define PIR_PIN 3
 #define ULTRA_POWER_PIN 5
 #define PAYLOAD_SIZE 1
 
-static volatile bool personDetected = false;
+volatile byte personDetected = 0;
+volatile byte waitingForPerson = 0;
 
 /*************  USER Configuration *****************************/
                                            // Hardware configuration
@@ -27,8 +29,9 @@ void wakeUp() {
 }
 
 void setPersonDetected() {
-  personDetected = true;
-  detachInterrupt(1);
+  if (waitingForPerson) {
+    personDetected = 1;
+  }
 }
 
 void sleep() {
@@ -65,8 +68,12 @@ void setup(void) {
   Serial.begin(115200);
 
   pinMode(DOOR_PIN, INPUT_PULLUP);
+  pinMode(PIR_PIN, INPUT);
+  digitalWrite(PIR_PIN,LOW);
   pinMode(ULTRA_POWER_PIN, OUTPUT);
   digitalWrite(ULTRA_POWER_PIN, LOW);
+
+  attachInterrupt(1, setPersonDetected, RISING);
 
   initRadio();
 }
@@ -76,22 +83,23 @@ void loop(void){
 
   if (personDetected) {
     data[0] = 'P';
-    personDetected = false;
+    personDetected = 0;
+    waitingForPerson = 0;
   } else {
-    detachInterrupt(1);
+    waitingForPerson = 0;
     delay(20);
     byte value = digitalRead(DOOR_PIN);
   
     data[0] = value == HIGH ? 'O' : 'C';
   
-    digitalWrite(ULTRA_POWER_PIN, HIGH);
-  
     if (value == LOW) {
-      attachInterrupt(1, setPersonDetected, HIGH);
+      waitingForPerson = 1;
     }
   }
   
   Serial.println(F("Initiating Basic Data Transfer"));
+
+  digitalWrite(ULTRA_POWER_PIN, HIGH);
 
   radio.powerUp();
           
