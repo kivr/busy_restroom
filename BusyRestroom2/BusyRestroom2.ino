@@ -3,10 +3,9 @@
 #include <avr/sleep.h>
 
 #define DOOR_PIN 2
+#define PIR_PIN 3
 #define ULTRA_POWER_PIN 5
 #define PAYLOAD_SIZE 1
-
-volatile byte personDetected = 0;
 
 /*************  USER Configuration *****************************/
                                            // Hardware configuration
@@ -16,20 +15,12 @@ RF24 radio(15, 14);                           // Set up nRF24L01 radio on SPI bu
 
 const uint64_t pipe = 0xABCDABCD71LL;   // Radio pipe addresses for the 2 nodes to communicate.
 
-byte data[PAYLOAD_SIZE];                             //Data buffer for testing data transfer speeds
-
 unsigned long counter, rxTimer;            //Counter and timer for keeping track transfer info
 unsigned long startTime, stopTime;
-byte waitToAttachPIRIRQ = 0;
 
 void wakeUp() {
   sleep_disable();
   detachInterrupt(0);
-}
-
-void setPersonDetected() {
-  personDetected = 1;
-  detachInterrupt(1);
 }
 
 void sleep() {
@@ -72,58 +63,46 @@ void setup(void) {
   initRadio();
 }
 
+void sendData(char data) {
+  Serial.println(F("Initiating Basic Data Transfer"));
+  
+  digitalWrite(ULTRA_POWER_PIN, HIGH);
+  
+  radio.powerUp();
+          
+  if(!radio.writeFast(&data, PAYLOAD_SIZE)){   //Write to the FIFO buffers        
+    counter++;                      //Keep count of failed payloads
+  }
+                                       //This should be called to wait for completion and put the radio in standby mode after transmission, returns 0 if data still in FIFO (timed out), 1 if success
+  bool txOK = radio.txStandBy(3000);
+  
+  Serial.print("Transfer complete ");
+  Serial.print(txOK ? "OK" : "ERROR");
+  Serial.println();
+
+  radio.powerDown();
+
+  digitalWrite(ULTRA_POWER_PIN, LOW);
+}
+
 void loop(void){
   counter = 0;
 
-  if (personDetected) {
-    data[0] = 'P';
-    personDetected = 0;
-  } else if (waitToAttachPIRIRQ) {
-    byte value;
-    delay(4000);
+  delay(20);
+  byte value = digitalRead(DOOR_PIN);
 
-    value = digitalRead(DOOR_PIN);
-    data[0] = value == HIGH ?
-              'O' : // Open after waiting
-              'S'; // Skip
-    
-    attachInterrupt(1, setPersonDetected, RISING);
-    waitToAttachPIRIRQ = 0;
-  } else {
-    detachInterrupt(1);
-    delay(20);
-    byte value = digitalRead(DOOR_PIN);
-  
-    data[0] = value == HIGH ? 'O' : 'C';
-  
-    if (value == LOW) {
-      waitToAttachPIRIRQ = 1;
+  sendData(value == HIGH ? 'O' : 'C');
+
+  if (value == LOW) {
+    unsigned long pirPulseTime = pulseIn(PIR_PIN, HIGH, 15000000L);
+
+    if (pirPulseTime > 2000000L) {
+      sendData('P');
+    } else if (digitalRead(DOOR_PIN) == HIGH) {
+      // Opened while waiting for PIR to detect person
+      sendData('O');
     }
   }
 
-  if (data[0] != 'S') {
-    Serial.println(F("Initiating Basic Data Transfer"));
-  
-    digitalWrite(ULTRA_POWER_PIN, HIGH);
-    
-    radio.powerUp();
-            
-    if(!radio.writeFast(&data, PAYLOAD_SIZE)){   //Write to the FIFO buffers        
-      counter++;                      //Keep count of failed payloads
-    }
-                                         //This should be called to wait for completion and put the radio in standby mode after transmission, returns 0 if data still in FIFO (timed out), 1 if success
-    bool txOK = radio.txStandBy(3000);
-    
-    Serial.print("Transfer complete ");
-    Serial.print(txOK ? "OK" : "ERROR");
-    Serial.println();
-  
-    radio.powerDown();
-  
-    digitalWrite(ULTRA_POWER_PIN, LOW);
-  }
-
-  if (!personDetected && !waitToAttachPIRIRQ) {
-    sleep();
-  }
+  sleep();
 }
