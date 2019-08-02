@@ -61,7 +61,7 @@ RF24 radio(RPI_V2_GPIO_P1_15, RPI_V2_GPIO_P1_24, BCM2835_SPI_SPEED_8MHZ);
 const uint64_t address = 0xABCDABCD71LL;
 
 
-uint8_t data[8];
+uint8_t data[1];
 unsigned long startTime, stopTime, counter, rxTimer=0;
 int clients[MAX_CLIENT_COUNT];
 int client_count = 0;
@@ -136,7 +136,7 @@ int main(int argc, char** argv){
     radio.setDataRate(RF24_250KBPS);
     radio.setAutoAck(1);                     // Ensure autoACK is enabled
     radio.setRetries(2,15);                  // Optionally, increase the delay between retries & # of retries
-    radio.setPayloadSize(8);
+    radio.setPayloadSize(1);
     radio.setCRCLength(RF24_CRC_8);          // Use 8-bit CRC for performance
     radio.printDetails();
     /********* Role chooser ***********/
@@ -157,18 +157,18 @@ int main(int argc, char** argv){
 
             rxTimer = millis();
             float numBytes = counter*32;
-            printf("%s", data[0] == 'C' ? " Closed " : " Opened ");
+            printf("%s", data[0] == 'C' ? "Closed" : data[0] == 'P' ? "Person" : "Opened");
 
-            if (data[0] == 'C') {
-                int i = 0;
-                double m = mean(data + 1, 7);
-                double v = variance(data + 1, 7);
-                printf("m:%.2f v:%.2f r:%c\n", m, v,
-                        m > 190.0 && v < 1000 ? 'E' : 'F');
-                for (i = 1; i < 8; i++) {
-                    printf("%d ", data[i]);
-                }
-            }
+//            if (data[0] == 'C') {
+//                int i = 0;
+//                double m = mean(data + 1, 7);
+//                double v = variance(data + 1, 7);
+//                printf("m:%.2f v:%.2f r:%c\n", m, v,
+//                        m > 190.0 && v < 1000 ? 'E' : 'F');
+//                for (i = 1; i < 8; i++) {
+//                    printf("%d ", data[i]);
+//                }
+//            }
             printf("\n");
 
             // Notify clients

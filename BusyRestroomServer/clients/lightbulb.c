@@ -35,7 +35,7 @@ int main (void)
             if (data == 'C') {
                 printf("Closed\n");
                 digitalWrite (LIGHT_BULB_PIN, 1) ;       // On
-            } else {
+            } else if (data == 'O') {
                 printf("Opened\n");
                 digitalWrite (LIGHT_BULB_PIN, 0) ;       // Off
             }
