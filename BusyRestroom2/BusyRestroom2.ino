@@ -15,8 +15,10 @@ RF24 radio(15, 14);                           // Set up nRF24L01 radio on SPI bu
 
 const uint64_t pipe = 0xABCDABCD71LL;   // Radio pipe addresses for the 2 nodes to communicate.
 
-unsigned long counter, rxTimer;            //Counter and timer for keeping track transfer info
+unsigned long rxTimer;            //Counter and timer for keeping track transfer info
 unsigned long startTime, stopTime;
+
+byte prevDoorValue = LOW;
 
 void wakeUp() {
   sleep_disable();
@@ -60,6 +62,8 @@ void setup(void) {
   pinMode(ULTRA_POWER_PIN, OUTPUT);
   digitalWrite(ULTRA_POWER_PIN, LOW);
 
+  attachInterrupt(1, wakeUp, RISING);
+
   initRadio();
 }
 
@@ -70,9 +74,7 @@ void sendData(char data) {
   
   radio.powerUp();
           
-  if(!radio.writeFast(&data, PAYLOAD_SIZE)){   //Write to the FIFO buffers        
-    counter++;                      //Keep count of failed payloads
-  }
+  radio.writeFast(&data, PAYLOAD_SIZE);
                                        //This should be called to wait for completion and put the radio in standby mode after transmission, returns 0 if data still in FIFO (timed out), 1 if success
   bool txOK = radio.txStandBy(3000);
   
@@ -86,22 +88,16 @@ void sendData(char data) {
 }
 
 void loop(void){
-  counter = 0;
 
   delay(20);
-  byte value = digitalRead(DOOR_PIN);
+  byte doorValue = digitalRead(DOOR_PIN);
+  byte pirValue = digitalRead(PIR_PIN);
 
-  sendData(value == HIGH ? 'O' : 'C');
-
-  if (value == LOW) {
-    unsigned long pirPulseTime = pulseIn(PIR_PIN, HIGH, 15000000L);
-
-    if (pirPulseTime > 2000000L) {
-      sendData('P');
-    } else if (digitalRead(DOOR_PIN) == HIGH) {
-      // Opened while waiting for PIR to detect person
-      sendData('O');
-    }
+  if (doorValue != prevDoorValue) {
+    sendData(doorValue == HIGH ? 'O' : 'C');
+    prevDoorValue = doorValue;
+  } else if (pirValue == HIGH) {
+    sendData('P');
   }
 
   sleep();
