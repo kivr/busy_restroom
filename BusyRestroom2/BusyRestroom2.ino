@@ -1,6 +1,6 @@
 #include <SPI.h>
 #include "RF24.h"
-#include <avr/sleep.h>
+#include "LowPower.h"
 
 #define DOOR_PIN 2
 #define PIR_PIN 3
@@ -21,8 +21,7 @@ unsigned long startTime, stopTime;
 byte prevDoorValue = LOW;
 
 void wakeUp() {
-  sleep_disable();
-  detachInterrupt(0);
+
 }
 
 void sleep() {
@@ -30,13 +29,15 @@ void sleep() {
   
   int value = digitalRead(DOOR_PIN);
 
-  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-  sleep_enable();
+  // Allow wake up pin to trigger interrupt on low.
+  attachInterrupt(0, wakeUp, value == HIGH ? FALLING : RISING);
   
-  noInterrupts();
-  attachInterrupt(0, wakeUp, value == HIGH ? LOW : HIGH);
-  interrupts();
-  sleep_cpu();
+  // Enter power down state with ADC and BOD module disabled.
+  // Wake up when wake up pin is low.
+  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); 
+  
+  // Disable external pin interrupt on wake up pin.
+  detachInterrupt(0);
 }
 
 void initRadio() {
