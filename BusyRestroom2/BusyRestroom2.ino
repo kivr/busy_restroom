@@ -5,6 +5,7 @@
 #define DOOR_PIN 2
 #define PIR_PIN 3
 #define ULTRA_POWER_PIN 5
+
 #define PAYLOAD_SIZE 1
 
 /*************  USER Configuration *****************************/
@@ -26,11 +27,12 @@ void wakeUp() {
 
 void sleep() {
   Serial.flush();
-  
-  int value = digitalRead(DOOR_PIN);
+
+  byte doorValue = digitalRead(DOOR_PIN);
 
   // Allow wake up pin to trigger interrupt on low.
-  attachInterrupt(0, wakeUp, value == HIGH ? FALLING : RISING);
+  attachInterrupt(0, wakeUp, doorValue == HIGH ? FALLING : RISING);
+  attachInterrupt(1, wakeUp, RISING);
   
   // Enter power down state with ADC and BOD module disabled.
   // Wake up when wake up pin is low.
@@ -38,6 +40,7 @@ void sleep() {
   
   // Disable external pin interrupt on wake up pin.
   detachInterrupt(0);
+  detachInterrupt(1);
 }
 
 void initRadio() {
@@ -60,18 +63,16 @@ void setup(void) {
   Serial.begin(115200);
 
   pinMode(DOOR_PIN, INPUT_PULLUP);
+  pinMode(PIR_PIN, INPUT);
+  digitalWrite(PIR_PIN, LOW);
   pinMode(ULTRA_POWER_PIN, OUTPUT);
   digitalWrite(ULTRA_POWER_PIN, LOW);
-
-  attachInterrupt(1, wakeUp, RISING);
 
   initRadio();
 }
 
 void sendData(char data) {
   Serial.println(F("Initiating Basic Data Transfer"));
-  
-  digitalWrite(ULTRA_POWER_PIN, HIGH);
   
   radio.powerUp();
           
@@ -84,8 +85,6 @@ void sendData(char data) {
   Serial.println();
 
   radio.powerDown();
-
-  digitalWrite(ULTRA_POWER_PIN, LOW);
 }
 
 void loop(void){
