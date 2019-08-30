@@ -12,34 +12,33 @@ s.connect(('/var/run/busy_restroom'))
 s.setblocking(0)
 
 lastDoorState='O'
-lastState = 'O'
+state = 'O'
+personCount = 0
 
 while True:
-    if lastState == 'P':
-        print("Waiting with timeout...")
-        sys.stdout.flush()
-        ready = select.select([s], [], [], 20)
-    else:
-        print("Waiting...")
-        sys.stdout.flush()
-        ready = select.select([s], [], [])
+    print("Waiting...")
+    sys.stdout.flush()
+    ready = select.select([s], [], [])
 
     if ready[0]:
         c=s.recv(1)
         print("Received %c" % c)
-        lastState=c[0:1]
+        state=c[0:1]
 
-        if lastState == 'P' and lastDoorState == 'O':
-            print("Skipping P state while door opened")
-            lastState='O'
-            continue
+        if state == 'P' and lastDoorState == 'C':
+            personCount = personCount + 1
         
-        if lastState != 'P':
-            lastDoorState=lastState
+        if state == 'C':
+            personCount = 0
+        elif state != 'P':
+            lastDoorState=state
 
-        print("Sending %c" % lastState)
-        f.patch('https://busyrestroom.firebaseio.com/farDoor', {'state':lastState})
-    else:
-        lastState='C'
-        print("Sending %c" % lastState)
-        f.patch('https://busyrestroom.firebaseio.com/farDoor', {'state':lastState})
+        if personCount < 2:
+            state = 'O' #Green toilet
+        elif personCount == 2:
+            state = 'C' #Yellow toilet
+        else
+            state = 'P' #Red toilet
+
+        print("Sending %c" % state)
+        f.patch('https://busyrestroom.firebaseio.com/farDoor', {'state':state})
